@@ -4,8 +4,14 @@ Thanks for your interest in improving Document Chat! This project is a small Fas
 
 ## How to contribute
 - **Report issues**: Bug reports and feature requests are welcome—include steps to reproduce, expected vs. actual behavior, and your environment.
-- **Submit pull requests**: Keep changes focused, describe the problem and solution, and mention any follow-up work you intentionally left out.
+- **Submit pull requests**: All code changes go through PRs. Keep changes focused, describe the problem and solution, and mention any follow-up work you intentionally left out.
 - **Improve docs**: Clarify setup steps, add troubleshooting notes, or inline comments where the code is non-obvious.
+
+## Pull request workflow
+1. **Fork** this repository to your own GitHub account.
+2. **Create a branch** in your fork for each change (`git checkout -b feature/my-change`).
+3. **Make and test your changes**, keeping commits small and descriptive.
+4. **Open a Pull Request** from your branch to this repo, explaining the context, solution, and any testing performed.
 
 ## Local setup
 Backend:
