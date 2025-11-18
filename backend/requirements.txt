@@ -8,3 +8,5 @@ python-multipart
 pypdf
 openai
 voyageai
+pdf2image
+pytesseract

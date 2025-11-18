@@ -29,6 +29,7 @@ Document Chat is a lightweight end-to-end Retrieval Augmented Generation (RAG) p
 - Python 3.11+
 - Node.js 18+ (includes npm)
 - Running Postgres instance with pgvector extension enabled
+- (Optional) Tesseract OCR binary + language data if you want scanned PDFs parsed
 
 ---
 
@@ -39,6 +40,8 @@ Create `backend/.env` (copy from `.env.example` if available) and set:
 - `DEEPSEEK_BASE_URL` – Optional override, default `https://api.deepseek.com`
 - `VOYAGE_API_KEY` – Embedding provider key
 - `VOYAGE_MODEL` – Defaults to `voyage-3.5`
+- `ENABLE_OCR` – `true` (default) to use OCR fallback when PDFs lack text; set to `false` to disable OCR
+- `TESSERACT_LANGS` – Languages to load for OCR (default `amh+eng`, requires installed language data)
 
 ---
 
@@ -51,6 +54,30 @@ pip install -r requirements.txt
 python -m app.db.init_db         # create tables
 uvicorn app.main:app --reload --port 8000
 ```
+
+---
+
+## OCR (scanned PDFs)
+OCR is only used when PDF text extraction returns nothing.
+
+### Install system dependencies
+- Ubuntu/Debian:
+  ```bash
+  sudo apt-get update
+  sudo apt-get install -y tesseract-ocr tesseract-ocr-amh poppler-utils
+  ```
+- macOS (Homebrew):
+  ```bash
+  brew install tesseract poppler
+  brew install tesseract-lang    # ensure Amharic data is installed if needed
+  ```
+
+### Configure
+- `ENABLE_OCR=true` (default) to allow OCR fallback; set `false` to reject scanned PDFs.
+- `TESSERACT_LANGS` to match installed language data (default `amh+eng`).
+- Restart the backend after changing OCR env vars or installing language packs.
+
+If OCR is disabled or a required language pack is missing, scanned PDF uploads will return an error with details.
 
 ---
 

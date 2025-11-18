@@ -1,3 +1,4 @@
+import re
 from typing import List
 
 from sqlalchemy import text
@@ -5,6 +6,8 @@ from sqlalchemy.orm import Session
 
 from app.models.models import Conversation, DocumentChunk, Message
 from app.services.embeddings import auth, get_embedding, client as llm_client
+
+AMHARIC_PATTERN = re.compile(r"[\u1200-\u137F]")
 
 
 def search_relevant_chunks(db: Session, conversation_id: int, query: str, top_k: int = 5) -> List[str]:
@@ -22,9 +25,16 @@ def search_relevant_chunks(db: Session, conversation_id: int, query: str, top_k:
     return [row[0] for row in result.fetchall()]
 
 
+def is_amharic(text: str) -> bool:
+    return bool(AMHARIC_PATTERN.search(text))
+
+
 def build_prompt(history: List[Message], context_chunks: List[str], user_message: str) -> str:
     recent_history = history[-10:]
     context = "\n\n".join(context_chunks)
+    target_language_instruction = (
+        "Respond in Amharic. " if is_amharic(user_message) else "Respond in the user's language. "
+    )
 
     conversation_lines = []
     for msg in recent_history:
@@ -32,7 +42,7 @@ def build_prompt(history: List[Message], context_chunks: List[str], user_message
         conversation_lines.append(f"{role}: {msg.content}")
 
     prompt = f"""
-You are a helpful assistant that answers based on the provided document context. If the answer is not present in the context, say you are not sure.
+You are a helpful assistant that answers based on the provided document context. {target_language_instruction}If the answer is not present in the context, say you are not sure.
 
 CONTEXT:
 {context}
