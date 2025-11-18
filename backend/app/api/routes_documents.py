@@ -6,10 +6,12 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from sqlalchemy.orm import Session
 from pypdf import PdfReader
 from pdf2image import convert_from_bytes
+from PIL import Image
 import pytesseract
 from pytesseract.pytesseract import TesseractNotFoundError, TesseractError
 
 from app.db.session import get_db
+from app.config import settings
 from app.models.models import Conversation, DocumentChunk
 from app.services.chunking import chunk_text
 from app.services.embeddings import get_embedding
@@ -18,6 +20,58 @@ router = APIRouter(prefix="/documents", tags=["documents"])
 
 OCR_ENABLED = os.getenv("ENABLE_OCR", "true").lower() == "true"
 TESSERACT_LANGS = os.getenv("TESSERACT_LANGS", "amh+eng")
+IMAGE_UPLOAD_ENABLED = settings.enable_image_upload
+
+# Supported image MIME types
+IMAGE_MIME_TYPES = {
+    "image/jpeg",
+    "image/jpg",
+    "image/png",
+    "image/gif",
+    "image/bmp",
+    "image/tiff",
+    "image/webp",
+}
+
+
+def extract_text_from_image(image_bytes: bytes) -> tuple[str | None, dict[str, Any]]:
+    """Extract text from an image using OCR. Returns None if no text is found."""
+    if not OCR_ENABLED:
+        raise HTTPException(
+            status_code=400,
+            detail="OCR is disabled. Enable OCR to process images.",
+        )
+
+    try:
+        image = Image.open(io.BytesIO(image_bytes))
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail="Invalid image file.") from exc
+
+    try:
+        ocr_text = pytesseract.image_to_string(image, lang=TESSERACT_LANGS).strip()
+    except TesseractNotFoundError as exc:
+        raise HTTPException(
+            status_code=500,
+            detail="OCR dependency missing: install the Tesseract binary on the server.",
+        ) from exc
+    except TesseractError as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=f"OCR failed. Ensure language data '{TESSERACT_LANGS}' is installed.",
+        ) from exc
+
+    if not ocr_text:
+        return None, {
+            "ocr_used": True,
+            "pages_processed": 1,
+            "text_source": "ocr",
+        }
+
+    return ocr_text, {
+        "ocr_used": True,
+        "pages_processed": 1,
+        "text_source": "ocr",
+    }
 
 
 def extract_text_with_ocr_fallback(pdf_bytes: bytes) -> tuple[str, dict[str, Any]]:
@@ -73,12 +127,43 @@ def upload_document(
     file: UploadFile = File(...),
     conversation_id: int | None = Form(None),
     db: Session = Depends(get_db),
-) -> dict[str, int | bool | str]:
-    if file.content_type not in {"application/pdf", "application/x-pdf", "application/octet-stream"}:
-        raise HTTPException(status_code=400, detail="Only PDF files are supported.")
+) -> dict[str, int | bool | str | None]:
+    # Check if file is PDF or image
+    is_pdf = file.content_type in {"application/pdf", "application/x-pdf", "application/octet-stream"}
+    is_image = file.content_type in IMAGE_MIME_TYPES
 
-    pdf_bytes = file.file.read()
-    full_text, text_meta = extract_text_with_ocr_fallback(pdf_bytes)
+    # Check if image uploads are enabled
+    if is_image and not IMAGE_UPLOAD_ENABLED:
+        raise HTTPException(
+            status_code=400,
+            detail="Only PDF files are allowed. Please upload a PDF file.",
+        )
+
+    if not (is_pdf or is_image):
+        supported_formats = "PDF files"
+        if IMAGE_UPLOAD_ENABLED:
+            supported_formats += " and images (JPEG, PNG, GIF, BMP, TIFF, WebP)"
+        raise HTTPException(
+            status_code=400,
+            detail=f"Only {supported_formats} are supported.",
+        )
+
+    file_bytes = file.file.read()
+
+    # Process based on file type
+    if is_image:
+        full_text, text_meta = extract_text_from_image(file_bytes)
+        if full_text is None:
+            return {
+                "conversation_id": None,
+                "num_chunks": 0,
+                "ocr_used": text_meta["ocr_used"],
+                "pages_processed": text_meta["pages_processed"],
+                "text_source": text_meta["text_source"],
+                "message": "The uploaded file doesn't contain text",
+            }
+    else:
+        full_text, text_meta = extract_text_with_ocr_fallback(file_bytes)
 
     convo: Conversation | None = None
     if conversation_id is not None:

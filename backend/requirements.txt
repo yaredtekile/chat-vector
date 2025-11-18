@@ -10,3 +10,4 @@ openai
 voyageai
 pdf2image
 pytesseract
+pillow
