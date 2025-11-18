@@ -1,22 +1,9 @@
 from typing import Iterator
 
-from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, declarative_base, sessionmaker
 
-
-class Settings(BaseSettings):
-    database_url: str
-
-    # Look for .env in backend/ or project root; ignore unrelated env keys
-    model_config = SettingsConfigDict(
-        env_file=(".env", "../.env"),
-        env_file_encoding="utf-8",
-        extra="ignore",
-    )
-
-
-settings = Settings()
+from app.config import settings
 
 # Engine and session factory
 engine = create_engine(settings.database_url)

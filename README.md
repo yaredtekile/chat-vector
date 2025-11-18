@@ -58,7 +58,7 @@ uvicorn app.main:app --reload --port 8000
 ---
 
 ## OCR (scanned PDFs)
-OCR is only used when PDF text extraction returns nothing.
+OCR is only used when PDF text extraction returns nothing and when image file is uploaded.
 
 ### Install system dependencies
 - Ubuntu/Debian:
@@ -74,6 +74,7 @@ OCR is only used when PDF text extraction returns nothing.
 
 ### Configure
 - `ENABLE_OCR=true` (default) to allow OCR fallback; set `false` to reject scanned PDFs.
+- `ENABLE_IMAGE_UPLOAD=True` to allow image upload for OCR text extraction; set `False` to block image upload.
 - `TESSERACT_LANGS` to match installed language data (default `amh+eng`).
 - Restart the backend after changing OCR env vars or installing language packs.
 

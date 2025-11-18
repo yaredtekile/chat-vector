@@ -30,6 +30,7 @@ function App() {
   const [conversations, setConversations] = useState<ConversationSummary[]>([])
   const [isLoadingConversations, setIsLoadingConversations] = useState(false)
   const [isMessagesLoading, setIsMessagesLoading] = useState(false)
+  const [uploadMessage, setUploadMessage] = useState<string | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
 
   const fetchConversations = useCallback(async () => {
@@ -92,6 +93,7 @@ function App() {
   const handleUpload = async () => {
     if (!selectedFile) return
     setIsUploading(true)
+    setUploadMessage(null)
     try {
       const formData = new FormData()
       formData.append('file', selectedFile)
@@ -105,15 +107,32 @@ function App() {
       })
 
       if (!res.ok) {
-        console.error('Upload failed', await res.text())
+        try {
+          const errorData = await res.json()
+          const errorMessage = errorData.detail || 'Upload failed'
+          console.error('Upload failed', errorMessage)
+          setUploadMessage(errorMessage)
+        } catch {
+          const errorText = await res.text()
+          console.error('Upload failed', errorText)
+          setUploadMessage('Upload failed. Please try again.')
+        }
         return
       }
 
       const data = await res.json()
-      setConversationId(data.conversation_id)
-      fetchConversations()
+      
+      // Check if there's a message (e.g., "no text in image")
+      if (data.message) {
+        setUploadMessage(data.message)
+      } else {
+        setUploadMessage(null)
+        setConversationId(data.conversation_id)
+        fetchConversations()
+      }
     } catch (err) {
       console.error('Upload error', err)
+      setUploadMessage('Upload error occurred. Please try again.')
     } finally {
       setIsUploading(false)
       setSelectedFile(null)
@@ -279,7 +298,7 @@ function App() {
               <CardHeader className="flex flex-col gap-2 pb-2 lg:flex-row lg:items-center lg:justify-between">
                 <div>
                   <CardTitle className="text-lg">Upload a document</CardTitle>
-                  <p className="text-sm text-gray-500">Supported format: PDF up to 10MB.</p>
+                  <p className="text-sm text-gray-500">Supported formats: PDF and images (JPEG, PNG, GIF, BMP, TIFF, WebP) up to 10MB.</p>
                 </div>
                 {conversationId && (
                   <span className="text-xs font-medium text-gray-500">Conversation #{conversationId}</span>
@@ -289,14 +308,22 @@ function App() {
                 <div className="flex flex-col gap-3 md:flex-row md:items-center">
                   <Input
                     type="file"
-                    accept="application/pdf"
-                    onChange={(e) => setSelectedFile(e.target.files?.[0] ?? null)}
+                    accept="application/pdf,image/jpeg,image/jpg,image/png,image/gif,image/bmp,image/tiff,image/webp"
+                    onChange={(e) => {
+                      setSelectedFile(e.target.files?.[0] ?? null)
+                      setUploadMessage(null)
+                    }}
                     className="flex-1"
                   />
                   <Button onClick={handleUpload} disabled={!selectedFile || isUploading} className="md:w-44">
-                    {isUploading ? 'Uploading...' : 'Upload PDF'}
+                    {isUploading ? 'Uploading...' : 'Upload File'}
                   </Button>
                 </div>
+                {uploadMessage && (
+                  <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                    {uploadMessage}
+                  </div>
+                )}
                 <p className="text-xs text-gray-500">Uploading a new file will attach it to the current conversation.</p>
               </CardContent>
             </Card>
